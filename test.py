@@ -11,32 +11,39 @@ import os
 # === Thiết bị ===
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# === Kích thước ảnh (tăng lên khi đã ổn định) ===
-imsize = 512
+# === Kích thước ảnh ===
+imsize = 224
 
-# === Kiểm tra định dạng ảnh ===
+# === Kiểm tra định dạng ảnh (Giữ lại để kiểm tra file tĩnh nếu cần) ===
 def check_image_format(image_path):
     valid_exts = ['.jpg', '.jpeg', '.png']
     ext = os.path.splitext(image_path)[1].lower()
     if ext not in valid_exts:
         raise ValueError(f"❌ Định dạng ảnh không hợp lệ: {ext}. Chỉ hỗ trợ {valid_exts}")
 
-# === Load ảnh ===
-def image_loader(image_path, imsize, device):
+# === Load ảnh (ĐÃ SỬA: Hỗ trợ cả file path và PIL Image từ Web) ===
+def image_loader(image_input, imsize, device):
     loader = transforms.Compose([
         transforms.Resize((imsize, imsize), interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.ToTensor(),
-        transforms.Lambda(lambda x: x[:3, :, :] if x.shape[0] > 3 else x),
+        transforms.Lambda(lambda x: x[:3, :, :] if x.shape[0] > 3 else x), # Bỏ kênh Alpha
     ])
-    image = Image.open(image_path).convert('RGB')
+    
+    # Kiểm tra đầu vào:
+    if isinstance(image_input, str):
+        # Nếu là đường dẫn file (string)
+        image = Image.open(image_input).convert('RGB')
+    else:
+        # Nếu là đối tượng ảnh (PIL Image) từ web upload
+        image = image_input.convert('RGB')
+        
     image = loader(image).unsqueeze(0)
     return image.to(device, torch.float)
 
-# === Hiển thị ảnh ===
+# === Hiển thị ảnh (Dùng khi debug local) ===
 def imshow(tensor, title=None):
     image = tensor.cpu().clone().squeeze(0)
     image = transforms.ToPILImage()(image)
-    # Áp dụng bộ lọc làm nét mạnh hơn
     image = image.filter(ImageFilter.UnsharpMask(radius=3, percent=200, threshold=2))
     plt.imshow(image)
     if title:
@@ -81,7 +88,7 @@ class StyleLoss(nn.Module):
         self.loss = nn.functional.mse_loss(G, self.target)
         return input
 
-# === Load model VGG19 ===
+# === Load model VGG19 (Load 1 lần khi import file) ===
 cnn = models.vgg19(weights=VGG19_Weights.IMAGENET1K_V1).features.to(device).eval()
 cnn_normalization_mean = [0.485, 0.456, 0.406]
 cnn_normalization_std = [0.229, 0.224, 0.225]
@@ -128,7 +135,6 @@ def get_style_model_and_losses(cnn, normalization_mean, normalization_std,
             model.add_module(f'style_loss_{i}', style_loss)
             style_losses.append(style_loss)
 
-    # Cắt model sau layer cuối cùng có loss
     for j in range(len(model) - 1, -1, -1):
         if isinstance(model[j], ContentLoss) or isinstance(model[j], StyleLoss):
             break
@@ -136,7 +142,7 @@ def get_style_model_and_losses(cnn, normalization_mean, normalization_std,
 
     return model, style_losses, content_losses
 
-# === Chuyển phong cách (dùng L-BFGS) ===
+# === Chuyển phong cách (Core Logic) ===
 def run_style_transfer(cnn, normalization_mean, normalization_std,
                        content_img, style_img, input_img, num_steps=300,
                        style_weight=1e6, content_weight=1e0):
@@ -157,6 +163,8 @@ def run_style_transfer(cnn, normalization_mean, normalization_std,
             content_score = sum(cl.loss for cl in content_losses)
             loss = style_score * style_weight + content_score * content_weight
             loss.backward()
+            
+            # In ra log mỗi 50 bước
             if run[0] % 50 == 0:
                 print(f"Step {run[0]}: Style Loss: {style_score.item():.4f} | Content Loss: {content_score.item():.4f}")
             run[0] += 1
@@ -166,25 +174,28 @@ def run_style_transfer(cnn, normalization_mean, normalization_std,
         input_img.clamp_(0, 1)
     return input_img
 
-# === ĐƯỜNG DẪN ẢNH ===
-content_path = "content.png"  # Thay bằng đường dẫn ảnh của bạn
-style_path = "style.png"      # Thay bằng đường dẫn ảnh của bạn
+# === HÀM MỚI: Wrapper để Web gọi ===
+def style_transfer(content_image_input, style_image_input, num_steps=300, style_weight=1e6, content_weight=1e0):
+    """
+    Hàm này nhận đầu vào là ảnh (path hoặc PIL object) và trả về ảnh kết quả (PIL object)
+    """
+    # 1. Load ảnh thành Tensor
+    content_img = image_loader(content_image_input, imsize, device)
+    style_img = image_loader(style_image_input, imsize, device)
+    input_img = content_img.clone()
 
-# === KIỂM TRA FILE ẢNH ===
-check_image_format(content_path)
-check_image_format(style_path)
+    # 2. Chạy thuật toán (Sử dụng biến 'cnn' toàn cục đã load ở trên)
+    output_tensor = run_style_transfer(
+        cnn, cnn_normalization_mean, cnn_normalization_std,
+        content_img, style_img, input_img,
+        num_steps=num_steps, style_weight=style_weight, content_weight=content_weight
+    )
 
-# === LOAD ẢNH ===
-content_img = image_loader(content_path, imsize, device)
-style_img = image_loader(style_path, imsize, device)
-input_img = content_img.clone()
-
-# === CHẠY ===
-output = run_style_transfer(
-    cnn, cnn_normalization_mean, cnn_normalization_std,
-    content_img, style_img, input_img,
-    num_steps=50, style_weight=1e6, content_weight=1e0
-)
-
-# === HIỂN THỊ KẾT QUẢ ===
-imshow(output, title="Ảnh đã chuyển phong cách")
+    # 3. Chuyển Tensor kết quả về dạng ảnh PIL
+    output_image = output_tensor.cpu().clone().squeeze(0)
+    output_image = transforms.ToPILImage()(output_image)
+    
+    # 4. Áp dụng bộ lọc làm nét (giống hàm imshow cũ) để ảnh đẹp hơn
+    output_image = output_image.filter(ImageFilter.UnsharpMask(radius=3, percent=200, threshold=2))
+    
+    return output_image
