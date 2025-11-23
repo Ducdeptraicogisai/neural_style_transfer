@@ -41,6 +41,10 @@ with st.sidebar:
     except FileNotFoundError:
         st.error(f"Không tìm thấy thư mục '{STYLE_FOLDER}'")
 
+    style_weight = st.sidebar.slider("Độ mạnh của Style", 10000, 2000000, 1000000)
+    num_steps = st.sidebar.slider("Số bước xử lý (Chất lượng)", 100, 500, 300)
+    tv_weight = st.sidebar.slider("Độ mịn (Giảm nhiễu)", 0.0, 0.001, 0.0001, format="%.5f")
+
 # 2. Cột chính: Upload Content và Kết quả
 st.header("2. Tải ảnh của bạn lên")
 uploaded_file = st.file_uploader("Chọn ảnh nội dung (Content Image)", type=['jpg', 'png', 'jpeg'])

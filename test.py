@@ -4,52 +4,38 @@ import torch.optim as optim
 from torchvision import models, transforms
 from torchvision.models import VGG19_Weights
 from PIL import Image, ImageFilter
-import matplotlib.pyplot as plt
 import copy
 import os
 
 # === Thiết bị ===
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# === Kích thước ảnh ===
-imsize = 224
+# === 1. Kích thước ảnh (CẬP NHẬT: 512 để nét hơn) ===
+imsize = 512  
 
-# === Kiểm tra định dạng ảnh (Giữ lại để kiểm tra file tĩnh nếu cần) ===
+# === Kiểm tra định dạng ảnh ===
 def check_image_format(image_path):
     valid_exts = ['.jpg', '.jpeg', '.png']
     ext = os.path.splitext(image_path)[1].lower()
     if ext not in valid_exts:
         raise ValueError(f"❌ Định dạng ảnh không hợp lệ: {ext}. Chỉ hỗ trợ {valid_exts}")
 
-# === Load ảnh (ĐÃ SỬA: Hỗ trợ cả file path và PIL Image từ Web) ===
+# === Load ảnh ===
 def image_loader(image_input, imsize, device):
     loader = transforms.Compose([
         transforms.Resize((imsize, imsize), interpolation=transforms.InterpolationMode.BICUBIC),
         transforms.ToTensor(),
-        transforms.Lambda(lambda x: x[:3, :, :] if x.shape[0] > 3 else x), # Bỏ kênh Alpha
+        # Bỏ kênh Alpha (nếu có) để chỉ lấy RGB
+        transforms.Lambda(lambda x: x[:3, :, :] if x.shape[0] > 3 else x),
     ])
     
-    # Kiểm tra đầu vào:
     if isinstance(image_input, str):
-        # Nếu là đường dẫn file (string)
         image = Image.open(image_input).convert('RGB')
     else:
-        # Nếu là đối tượng ảnh (PIL Image) từ web upload
         image = image_input.convert('RGB')
         
     image = loader(image).unsqueeze(0)
     return image.to(device, torch.float)
-
-# === Hiển thị ảnh (Dùng khi debug local) ===
-def imshow(tensor, title=None):
-    image = tensor.cpu().clone().squeeze(0)
-    image = transforms.ToPILImage()(image)
-    image = image.filter(ImageFilter.UnsharpMask(radius=3, percent=200, threshold=2))
-    plt.imshow(image)
-    if title:
-        plt.title(title)
-    plt.axis('off')
-    plt.show()
 
 # === Chuẩn hóa ===
 class Normalization(nn.Module):
@@ -88,7 +74,19 @@ class StyleLoss(nn.Module):
         self.loss = nn.functional.mse_loss(G, self.target)
         return input
 
-# === Load model VGG19 (Load 1 lần khi import file) ===
+# === 2. HÀM MỚI: Total Variation Loss (Làm mịn ảnh) ===
+def total_variation_loss(img, weight):
+    """
+    Tính toán sự chênh lệch giữa các pixel liền kề để giảm nhiễu.
+    """
+    b, c, h, w = img.size()
+    # Chênh lệch theo chiều ngang (w)
+    tv_h = torch.sum(torch.abs(img[:, :, :, :-1] - img[:, :, :, 1:]))
+    # Chênh lệch theo chiều dọc (h)
+    tv_w = torch.sum(torch.abs(img[:, :, :-1, :] - img[:, :, 1:, :]))
+    return weight * (tv_h + tv_w)
+
+# === Load model VGG19 ===
 cnn = models.vgg19(weights=VGG19_Weights.IMAGENET1K_V1).features.to(device).eval()
 cnn_normalization_mean = [0.485, 0.456, 0.406]
 cnn_normalization_std = [0.229, 0.224, 0.225]
@@ -145,57 +143,75 @@ def get_style_model_and_losses(cnn, normalization_mean, normalization_std,
 # === Chuyển phong cách (Core Logic) ===
 def run_style_transfer(cnn, normalization_mean, normalization_std,
                        content_img, style_img, input_img, num_steps=300,
-                       style_weight=1e6, content_weight=1e0):
+                       style_weight=1e6, content_weight=1e0, 
+                       tv_weight=1e-4): # <--- Thêm tham số tv_weight
+    
     print("🔧 Bắt đầu chuyển phong cách...")
     model, style_losses, content_losses = get_style_model_and_losses(
         cnn, normalization_mean, normalization_std, style_img, content_img)
     input_img.requires_grad_(True)
+    
+    # Dùng LBFGS để tối ưu hóa
     optimizer = optim.LBFGS([input_img])
 
     run = [0]
     while run[0] <= num_steps:
         def closure():
             with torch.no_grad():
-                input_img.clamp_(0, 1)
+                input_img.clamp_(0, 1) # Giữ giá trị pixel trong khoảng [0, 1]
+            
             optimizer.zero_grad()
             model(input_img)
+            
             style_score = sum(sl.loss for sl in style_losses)
             content_score = sum(cl.loss for cl in content_losses)
-            loss = style_score * style_weight + content_score * content_weight
+            
+            # 3. Tính Total Variation Loss
+            tv_score = total_variation_loss(input_img, tv_weight)
+            
+            # Tổng hợp Loss
+            loss = style_score * style_weight + content_score * content_weight + tv_score
             loss.backward()
             
-            # In ra log mỗi 50 bước
-            if run[0] % 50 == 0:
-                print(f"Step {run[0]}: Style Loss: {style_score.item():.4f} | Content Loss: {content_score.item():.4f}")
             run[0] += 1
+            if run[0] % 50 == 0:
+                print(f"Step {run[0]}: Style Loss: {style_score.item():.4f} | "
+                      f"Content: {content_score.item():.4f} | TV Loss: {tv_score.item():.4f}")
             return loss
+            
         optimizer.step(closure)
+        
     with torch.no_grad():
         input_img.clamp_(0, 1)
+        
     return input_img
 
-# === HÀM MỚI: Wrapper để Web gọi ===
-def style_transfer(content_image_input, style_image_input, num_steps=300, style_weight=1e6, content_weight=1e0):
+# === HÀM WRAPPER cho Web App ===
+def style_transfer(content_image_input, style_image_input, num_steps=300, 
+                   style_weight=1e6, content_weight=1e0, tv_weight=1e-4):
     """
-    Hàm này nhận đầu vào là ảnh (path hoặc PIL object) và trả về ảnh kết quả (PIL object)
+    Hàm gọi từ app.py, thêm tham số tv_weight
     """
-    # 1. Load ảnh thành Tensor
+    # Load ảnh
     content_img = image_loader(content_image_input, imsize, device)
     style_img = image_loader(style_image_input, imsize, device)
     input_img = content_img.clone()
 
-    # 2. Chạy thuật toán (Sử dụng biến 'cnn' toàn cục đã load ở trên)
+    # Chạy
     output_tensor = run_style_transfer(
         cnn, cnn_normalization_mean, cnn_normalization_std,
         content_img, style_img, input_img,
-        num_steps=num_steps, style_weight=style_weight, content_weight=content_weight
+        num_steps=num_steps, 
+        style_weight=style_weight, 
+        content_weight=content_weight,
+        tv_weight=tv_weight
     )
 
-    # 3. Chuyển Tensor kết quả về dạng ảnh PIL
+    # Convert sang PIL
     output_image = output_tensor.cpu().clone().squeeze(0)
     output_image = transforms.ToPILImage()(output_image)
     
-    # 4. Áp dụng bộ lọc làm nét (giống hàm imshow cũ) để ảnh đẹp hơn
-    output_image = output_image.filter(ImageFilter.UnsharpMask(radius=3, percent=200, threshold=2))
+    # Filter nhẹ thêm lần nữa (tùy chọn)
+    output_image = output_image.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=2))
     
     return output_image
