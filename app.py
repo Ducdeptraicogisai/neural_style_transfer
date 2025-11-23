@@ -37,7 +37,7 @@ with st.sidebar:
         
         if selected_style_name:
             style_path = os.path.join(STYLE_FOLDER, selected_style_name)
-            st.image(style_path, caption="Style đã chọn", use_container_width=True)
+            st.image(style_path, caption="Style đã chọn", width="stretch")
     except FileNotFoundError:
         st.error(f"Không tìm thấy thư mục '{STYLE_FOLDER}'")
 
@@ -62,7 +62,7 @@ if uploaded_file is not None:
                 
                 # 2. Hiển thị kết quả
                 st.success("Hoàn tất!")
-                st.image(result_image, caption="Kết quả", use_container_width=True)
+                st.image(result_image, caption="Kết quả", width="stretch")
                 
                 # === PHẦN THÊM MỚI: Nút Download ===
                 # Chuyển ảnh PIL thành bytes để tải về
