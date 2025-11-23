@@ -30,8 +30,7 @@ python -m venv venv
 
 # Kích hoạt môi trường (Mac/Linux)
 source venv/bin/activate
-
-3. Cài đặt thư viện
+#### 3. Cài đặt thư viện
 pip install -r requirements.txt
 
 Chạy lệnh sau để khởi động ứng dụng web: streamlit run app.py
