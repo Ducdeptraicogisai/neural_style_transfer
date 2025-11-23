@@ -23,7 +23,7 @@ git clone https://github.com/Ducdeptraicogisai/neural_style_transfer.git
 cd neural-style-transfer
 ```
 
-2. Cài đặt môi trường
+### 2. Cài đặt môi trường
 Khuyên dùng Python 3.10 trở lên.
 ```bash
 # Tạo môi trường ảo (Khuyên dùng)
@@ -36,7 +36,7 @@ python -m venv venv
 source venv/bin/activate
 
 ```
-3. Cài đặt thư viện
+### 3. Cài đặt thư viện
 ```bash
 pip install -r requirements.txt
 ```
@@ -74,28 +74,15 @@ neural-style-transfer/
 └── README.md            # Tài liệu hướng dẫn
 ```
 
-🧠 Công nghệ sử dụng
-Python: Ngôn ngữ lập trình chính.
+## 🧠 Công nghệ sử dụng
 
-PyTorch: Framework Deep Learning dùng để load mô hình VGG19 và tính toán Loss.
+- Python — Ngôn ngữ lập trình chính
+- PyTorch — Framework Deep Learning dùng để load mô hình VGG19 và tính toán Loss
+- Streamlit — Framework xây dựng giao diện web nhanh chóng cho Data Science
+- VGG19 (Pre-trained) — Mô hình CNN dùng để trích xuất đặc trưng ảnh
 
-Streamlit: Framework xây dựng giao diện web nhanh chóng cho Data Science.
-
-VGG19 (Pre-trained): Mô hình mạng nơ-ron tích chập được sử dụng để trích xuất đặc trưng của ảnh.
-
-📝 Thêm Style mới
+## 📝 Thêm Style mới 
 Bạn muốn thêm phong cách mới vào ứng dụng? Rất đơn giản:
-
-Tìm một bức ảnh nghệ thuật bạn thích (.jpg, .png).
-
-Copy file ảnh đó vào thư mục style/.
-
-Khởi động lại ứng dụng (hoặc bấm Rerun), style mới sẽ tự động hiện trong danh sách chọn.
-
-**Created by:**
-
-1. Chu Hoàng Long  
-2. Huỳnh Tấn Đức  
-3. Nguyễn Hoàng Huy  
-4. Nguyễn Hữu Phúc  
-5. Hoàng Trung Hậu  
+- Tìm một bức ảnh nghệ thuật bạn thích (.jpg, .png).
+- Copy file ảnh đó vào thư mục style/.
+- Khởi động lại ứng dụng (hoặc bấm Rerun), style mới sẽ tự động hiện trong danh sách chọn.
