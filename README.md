@@ -21,7 +21,11 @@ Tải xuống: Cho phép tải ảnh kết quả chất lượng cao về máy.
 ```bash
 git clone https://github.com/Ducdeptraicogisai/neural_style_transfer.git
 cd neural-style-transfer
+```
 
+2. Cài đặt môi trường
+Khuyên dùng Python 3.10 trở lên.
+```bash
 # Tạo môi trường ảo (Khuyên dùng)
 python -m venv venv
 
@@ -31,12 +35,17 @@ python -m venv venv
 # Kích hoạt môi trường (Mac/Linux)
 source venv/bin/activate
 
-
+```
 3. Cài đặt thư viện
+```bash
 pip install -r requirements.txt
+```
+Lưu ý: Nếu bạn có GPU NVIDIA, hãy cài đặt PyTorch phiên bản hỗ trợ CUDA để chạy nhanh hơn.
 
-Chạy lệnh sau để khởi động ứng dụng web: 
+🚀 Hướng dẫn sử dụng
+Chạy lệnh sau để khởi động ứng dụng web:
 
+```bash
 streamlit run app.py
 ```
 
@@ -52,6 +61,7 @@ Bước 4: Tải ảnh kết quả về.
 
 
 📂 Cấu trúc dự án
+```plaintext
 neural-style-transfer/
 ├── app.py               # Giao diện web chính (Streamlit)
 ├── test.py              # Thư viện xử lý thuật toán (VGG19, Loss Functions)
@@ -62,7 +72,7 @@ neural-style-transfer/
 │   └── ...
 ├── content/             # Thư mục chứa ảnh nội dung mẫu (tùy chọn)
 └── README.md            # Tài liệu hướng dẫn
-
+```
 
 🧠 Công nghệ sử dụng
 Python: Ngôn ngữ lập trình chính.
@@ -81,3 +91,11 @@ Tìm một bức ảnh nghệ thuật bạn thích (.jpg, .png).
 Copy file ảnh đó vào thư mục style/.
 
 Khởi động lại ứng dụng (hoặc bấm Rerun), style mới sẽ tự động hiện trong danh sách chọn.
+
+**Created by:**
+
+1. Chu Hoàng Long  
+2. Huỳnh Tấn Đức  
+3. Nguyễn Hoàng Huy  
+4. Nguyễn Hữu Phúc  
+5. Hoàng Trung Hậu  
